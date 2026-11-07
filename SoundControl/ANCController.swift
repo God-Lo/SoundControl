@@ -20,6 +20,7 @@ final class ANCController: ObservableObject {
     /// or the request times out.
     @Published private(set) var pendingSourceAddress: String?
     @Published private(set) var sourceSwitchFailed = false
+    @Published private(set) var sourceSwitchMessage = "The headphones didn't confirm the switch."
     private var sourceSwitchTask: Task<Void, Never>?
     @Published private(set) var equalizer: EqualizerState?
     @Published private(set) var equalizerPresets: [EqualizerPreset] = EqualizerPreset.defaultList
@@ -222,6 +223,7 @@ final class ANCController: ObservableObject {
             try? await Task.sleep(for: .seconds(1.0))
             guard let self, !Task.isCancelled, self.pendingSourceAddress == target else { return }
             self.pendingSourceAddress = nil
+            self.sourceSwitchMessage = "The headphones didn't confirm the switch."
             self.sourceSwitchFailed = self.activeSourceAddress != target
         }
     }
@@ -410,6 +412,26 @@ final class ANCController: ObservableObject {
         }
         client.onBattery = { [weak self] battery in
             Task { @MainActor in self?.battery = battery }
+        }
+        client.onSourceSwitchResult = { [weak self] address, result in
+            Task { @MainActor in
+                guard let self else { return }
+                self.sourceSwitchTask?.cancel()
+                self.pendingSourceAddress = nil
+                if result == 0 {
+                    let match = self.multipointDevices.first { $0.address.caseInsensitiveCompare(address) == .orderedSame }
+                    self.activeSourceAddress = match?.address ?? address
+                    self.sourceSwitchFailed = false
+                } else {
+                    switch result {
+                    case 2: self.sourceSwitchMessage = "Can't switch during a call."
+                    case 3: self.sourceSwitchMessage = "That device isn't connected for audio. Start playback on it, then try again."
+                    case 4: self.sourceSwitchMessage = "The voice assistant is active. Try again when it's done."
+                    default: self.sourceSwitchMessage = "The headphones couldn't switch. Try again."
+                    }
+                    self.sourceSwitchFailed = true
+                }
+            }
         }
         client.onMultipoint = { [weak self] devices, activeAddress in
             Task { @MainActor in

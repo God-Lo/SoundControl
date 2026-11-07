@@ -166,6 +166,9 @@ final class HeadsetClient {
     private var playbackIndexBase = UserDefaults.standard.object(forKey: "multipointPlaybackIndexBase") as? Int ?? 0
     private var lastRawPlaybackIndex: Int?
     private var switchTarget: (address: String, requested: Date)?
+    /// Device the headset just confirmed as playing; the next device list is
+    /// shown with it active and calibrates how the playback byte counts.
+    private var confirmedActive: String?
 
     private(set) var multipointDevices: [MultipointDevice] = []
     private(set) var activeSourceAddress: String?
@@ -175,6 +178,10 @@ final class HeadsetClient {
     var onMode: ((ANCMode) -> Void)?
     var onNoiseCancellationAvailability: ((Bool) -> Void)?
     var onMultipoint: (([MultipointDevice], String?) -> Void)?
+    /// Result of a switch request: target address and result code
+    /// (0 success, 1 failed, 2 in a call, 3 device not connected for audio,
+    /// 4 voice assistant has priority).
+    var onSourceSwitchResult: ((String, UInt8) -> Void)?
     var onModelName: ((String) -> Void)?
     var onEqualizer: ((EqualizerState) -> Void)?
     var onEqualizerPresets: (([EqualizerPreset]) -> Void)?
@@ -491,6 +498,17 @@ final class HeadsetClient {
             applyDeviceList(payload)
             return
         }
+        // Switch result: `[0x3D, 0x01, result, 17-byte target address]`.
+        if command == Table2.notifyExtendedParam, inquiredType == Table2.inquiredSourceSwitchControl,
+           payload.count >= 3 + Table2.addressLength {
+            let result = payload[2]
+            let address = String(decoding: payload[3..<(3 + Table2.addressLength)], as: UTF8.self)
+            if result == 0 {
+                confirmedActive = address
+                activeSourceAddress = address
+            }
+            onSourceSwitchResult?(address, result)
+        }
         if command == Table2.notifyParam || command == Table2.notifyExtendedParam {
             // A device connected/disconnected or playback moved (including the
             // confirmation of our own switch request). Re-read the list so the
@@ -506,8 +524,8 @@ final class HeadsetClient {
     /// Payload layout reported by the headphones:
     /// `[command, 0x00, count]` followed by `count` entries of
     /// `17-byte ASCII address | 1-byte status | 1-byte name length | name`,
-    /// and finally one byte with the 1-based index of the playback device
-    /// (0 when no device is active).
+    /// and finally one byte for the playback device. Whether it counts from
+    /// 0 or 1 is calibrated from a confirmed switch.
     private func applyDeviceList(_ payload: [UInt8]) {
         guard payload.count >= 3 else { return }
         let count = Int(payload[2])
@@ -537,6 +555,16 @@ final class HeadsetClient {
             let position = raw - playbackIndexBase
             if devices.indices.contains(position) {
                 active = devices[position].address
+            }
+            if let confirmed = confirmedActive,
+               let confirmedPosition = devices.firstIndex(where: { $0.address.caseInsensitiveCompare(confirmed) == .orderedSame }) {
+                confirmedActive = nil
+                let base = raw - confirmedPosition
+                if base == 0 || base == 1 {
+                    playbackIndexBase = base
+                    UserDefaults.standard.set(base, forKey: "multipointPlaybackIndexBase")
+                }
+                active = devices[confirmedPosition].address
             }
         }
 

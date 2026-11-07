@@ -268,7 +268,7 @@ struct ContentView: View {
                 }
             )
             if controller.sourceSwitchFailed {
-                Label("The headphones didn't confirm the switch. Try again, or start playback on that device.", systemImage: "exclamationmark.triangle.fill")
+                Label(controller.sourceSwitchMessage, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .transition(.opacity)
