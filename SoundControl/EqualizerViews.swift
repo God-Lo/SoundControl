@@ -266,8 +266,8 @@ struct EqualizerCurve {
 /// EQ curve with draggable points over a live waveform. Bars appear only while
 /// real levels arrive from the broadcast extension; otherwise the plot shows
 /// just the curve. Styled after Apple's AirPods equalizer; the line's color
-/// depends on distance from 0: blue at 0, then cyan, green, yellow, orange and
-/// red toward +10 and -10.
+/// depends on its value: blue at 0, then cyan, green, yellow, orange and red
+/// toward +10, and darker blue toward -10.
 struct EqualizerVisualizer: View {
     let bands: [Int]
     /// Real levels from the broadcast extension; used whenever they are fresh.
@@ -296,11 +296,8 @@ struct EqualizerVisualizer: View {
         .init(color: Color(red: 0.30, green: 0.88, blue: 0.52), location: 0.30),
         .init(color: Color(red: 0.16, green: 0.82, blue: 0.92), location: 0.40),
         .init(color: Color(red: 0.10, green: 0.52, blue: 1.00), location: 0.50),
-        .init(color: Color(red: 0.16, green: 0.82, blue: 0.92), location: 0.60),
-        .init(color: Color(red: 0.30, green: 0.88, blue: 0.52), location: 0.70),
-        .init(color: Color(red: 0.98, green: 0.86, blue: 0.24), location: 0.82),
-        .init(color: Color(red: 1.00, green: 0.62, blue: 0.10), location: 0.92),
-        .init(color: Color(red: 1.00, green: 0.27, blue: 0.23), location: 1.00),
+        .init(color: Color(red: 0.12, green: 0.36, blue: 0.86), location: 0.75),
+        .init(color: Color(red: 0.14, green: 0.24, blue: 0.70), location: 1.00),
     ])
 
     /// Waveform bars, as in Apple's equalizer: blue in the middle, then cyan,
@@ -320,7 +317,12 @@ struct EqualizerVisualizer: View {
 
     /// The same scale as a single color for a value (-10...+10).
     static func color(for value: Int) -> Color {
-        let t = min(1, Double(abs(value)) / 10)
+        if value < 0 {
+            // Below 0: blue darkening toward -10.
+            let f = min(1, Double(-value) / 10)
+            return Color(red: 0.10 + 0.04 * f, green: 0.52 - 0.28 * f, blue: 1.00 - 0.30 * f)
+        }
+        let t = min(1, Double(value) / 10)
         let stops: [(Double, (Double, Double, Double))] = [
             (0.0, (0.10, 0.52, 1.00)), (0.2, (0.16, 0.82, 0.92)), (0.4, (0.30, 0.88, 0.52)),
             (0.64, (0.98, 0.86, 0.24)), (0.84, (1.00, 0.62, 0.10)), (1.0, (1.00, 0.27, 0.23)),

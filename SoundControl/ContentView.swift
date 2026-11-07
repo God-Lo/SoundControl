@@ -10,6 +10,8 @@ struct ContentView: View {
     @State private var showingProfiles = false
     @State private var showingMusicWarning = false
     @State private var exportingEQ = false
+    @State private var namingExport = false
+    @State private var exportName = ""
     @State private var importingEQ = false
     @State private var eqFileMessage: String?
 
@@ -54,6 +56,16 @@ struct ContentView: View {
                 ProfilePickerSheet(controller: controller)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
+            }
+            // Kept apart from the exporter: two file pickers on one view
+            // don't reliably present.
+            .fileImporter(isPresented: $importingEQ, allowedContentTypes: [.json, .data, .plainText]) { result in
+                importEQ(result)
+            }
+            .alert("Equalizer", isPresented: Binding(get: { eqFileMessage != nil }, set: { if !$0 { eqFileMessage = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(eqFileMessage ?? "")
             }
         }
         .onAppear {
@@ -458,7 +470,10 @@ struct ContentView: View {
 
     private var eqFileMenu: some View {
         Menu {
-            Button { exportingEQ = true } label: { Label("Export EQ", systemImage: "square.and.arrow.up") }
+            Button {
+                exportName = controller.equalizer.map { EqualizerPreset.name(for: $0.presetID) } ?? "My EQ"
+                namingExport = true
+            } label: { Label("Export EQ", systemImage: "square.and.arrow.up") }
                 .disabled(controller.equalizer?.bands.isEmpty ?? true)
             Button { importingEQ = true } label: { Label("Import EQ", systemImage: "square.and.arrow.down") }
                 .disabled(!controller.isReady || controller.equalizer == nil)
@@ -470,17 +485,28 @@ struct ContentView: View {
                 .background(Circle().fill(Color(.tertiarySystemFill)))
         }
         .accessibilityLabel("Equalizer options")
-        .fileExporter(isPresented: $exportingEQ, document: EQDocument(file: currentEQFile), contentType: .json, defaultFilename: "Sound Control EQ") { result in
+        .alert("Name this EQ", isPresented: $namingExport) {
+            TextField("Name", text: $exportName)
+            Button("Save") {
+                // Let the alert finish closing before the save sheet opens.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { exportingEQ = true }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Used as the file name.")
+        }
+        .fileExporter(isPresented: $exportingEQ, document: EQDocument(file: currentEQFile), contentType: .json, defaultFilename: exportFileName) { result in
             if case .failure = result { eqFileMessage = "The EQ couldn't be saved." }
         }
-        .fileImporter(isPresented: $importingEQ, allowedContentTypes: [.json]) { result in
-            importEQ(result)
-        }
-        .alert("Equalizer", isPresented: Binding(get: { eqFileMessage != nil }, set: { if !$0 { eqFileMessage = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(eqFileMessage ?? "")
-        }
+    }
+
+    /// The typed name, without characters that aren't allowed in file names.
+    private var exportFileName: String {
+        let cleaned = exportName
+            .components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>"))
+            .joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? "My EQ" : cleaned
     }
 
     private var currentEQFile: EQFile {
@@ -488,26 +514,48 @@ struct ContentView: View {
         let bands = state?.bands ?? []
         let hasClearBass = bands.count == 6
         return EQFile(
-            name: state.map { EqualizerPreset.name(for: $0.presetID) } ?? "Equalizer",
             clearBass: hasClearBass ? bands[0] : nil,
             bands: hasClearBass ? Array(bands.dropFirst()) : bands
         )
     }
 
     private func importEQ(_ result: Result<URL, Error>) {
-        guard case .success(let url) = result else { return }
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url), let file = try? JSONDecoder().decode(EQFile.self, from: data),
-              file.bands.allSatisfy({ (-10...10).contains($0) }) else {
+        guard case .success(let url) = result else {
+            if case .failure = result { eqFileMessage = "The file couldn't be opened." }
+            return
+        }
+        guard let data = Self.readFile(at: url) else {
+            eqFileMessage = "The file couldn't be read. If it's in iCloud Drive, download it first."
+            return
+        }
+        guard let file = try? JSONDecoder().decode(EQFile.self, from: data),
+              file.bands.allSatisfy({ (-10...10).contains($0) }),
+              (file.clearBass ?? 0) >= -10, (file.clearBass ?? 0) <= 10 else {
             eqFileMessage = "That file isn't a Sound Control EQ."
+            return
+        }
+        guard controller.isReady, let current = controller.equalizer else {
+            eqFileMessage = "Connect the headphones, then import again."
             return
         }
         if controller.importEqualizer(bands: file.bands, clearBass: file.clearBass) {
             feedback()
         } else {
-            eqFileMessage = "That EQ has \(file.bands.count) bands, which doesn't match these headphones."
+            let expected = current.bands.count == 6 ? 5 : current.bands.count
+            eqFileMessage = "That EQ has \(file.bands.count) bands; these headphones use \(expected)."
         }
+    }
+
+    /// Reads a picked file, including iCloud files that aren't downloaded yet.
+    private static func readFile(at url: URL) -> Data? {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        var data: Data?
+        var coordinationError: NSError?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
+            data = try? Data(contentsOf: readURL)
+        }
+        return data ?? (try? Data(contentsOf: url))
     }
 
     private func profileRow(_ state: EqualizerState) -> some View {
@@ -744,11 +792,12 @@ struct MiniCurve: View {
                 let point = CGPoint(x: size.width * x, y: y)
                 if s == 0 { path.move(to: point) } else { path.addLine(to: point) }
             }
+            // Same color scale as the main curve: +10 at the top, -10 at the bottom.
             context.stroke(
                 path,
                 with: .linearGradient(
-                    Gradient(colors: [.yellow, .mint, .cyan]),
-                    startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)
+                    EqualizerVisualizer.gainGradient,
+                    startPoint: CGPoint(x: 0, y: 2), endPoint: CGPoint(x: 0, y: size.height - 2)
                 ),
                 style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
             )
@@ -816,13 +865,24 @@ private struct ProfilePickerSheet: View {
 
 // MARK: - EQ file
 
-/// Exported equalizer: the five curve bands (-10...+10) and Clear Bass.
+/// Exported equalizer: Clear Bass and the five curve bands (-10...+10).
 struct EQFile: Codable {
     var app = "Sound Control"
-    var version = 1
-    var name: String
     var clearBass: Int?
     var bands: [Int]
+
+    init(clearBass: Int?, bands: [Int]) {
+        self.clearBass = clearBass
+        self.bands = bands
+    }
+
+    /// Other keys (such as `name` or `version` in older exports) are ignored.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        app = (try? c.decode(String.self, forKey: .app)) ?? "Sound Control"
+        clearBass = try? c.decode(Int.self, forKey: .clearBass)
+        bands = try c.decode([Int].self, forKey: .bands)
+    }
 }
 
 struct EQDocument: FileDocument {
