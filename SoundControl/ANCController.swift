@@ -194,6 +194,20 @@ final class ANCController: ObservableObject {
         rememberCurve(EqualizerState(presetID: target, bands: state.bands))
     }
 
+    /// Applies band values from an imported EQ file and sends them.
+    /// `bands` are the five curve bands; `clearBass` is optional.
+    /// Returns false if they don't fit this headset's equalizer.
+    @discardableResult
+    func importEqualizer(bands: [Int], clearBass: Int?) -> Bool {
+        guard isReady, let state = equalizer else { return false }
+        let curveStart = state.bands.count == 6 ? 1 : 0
+        guard bands.count == state.bands.count - curveStart else { return false }
+        for (offset, value) in bands.enumerated() { previewEqualizerBand(curveStart + offset, value: value) }
+        if curveStart == 1, let clearBass { previewEqualizerBand(0, value: clearBass) }
+        commitEqualizerBands()
+        return true
+    }
+
     func resetEqualizerBands() {
         guard let state = equalizer else { return }
         for index in state.bands.indices { previewEqualizerBand(index, value: 0) }

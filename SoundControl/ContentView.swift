@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @ObservedObject var controller: ANCController
@@ -7,6 +8,10 @@ struct ContentView: View {
     @ObservedObject private var liveSpectrum = LiveSpectrumReceiver.shared
     @StateObject private var broadcastPicker = BroadcastPicker()
     @State private var showingProfiles = false
+    @State private var showingMusicWarning = false
+    @State private var exportingEQ = false
+    @State private var importingEQ = false
+    @State private var eqFileMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -350,7 +355,7 @@ struct ContentView: View {
             HStack(spacing: 8) {
                 sectionTitle("Equalizer", symbol: "slider.vertical.3")
                 Spacer()
-                liveButton
+                eqFileMenu
             }
 
             if let state {
@@ -359,16 +364,14 @@ struct ContentView: View {
 
             EqualizerVisualizer(
                 bands: state?.bands ?? [],
-                isPlaying: nowPlaying.isPlaying,
-                songTime: { nowPlaying.songTime(at: $0) },
-                tempo: nowPlaying.tempo,
-                seed: nowPlaying.seed,
                 live: liveSpectrum,
                 isLive: liveSpectrum.isLive,
                 editable: controller.isReady,
                 onChange: { controller.previewEqualizerBand($0, value: $1) },
                 onCommit: { controller.commitEqualizerBands() }
             )
+
+            liveSoundRow
 
             if let state, state.bands.count == 6 {
                 clearBassRow(state)
@@ -405,29 +408,106 @@ struct ContentView: View {
         .background(card)
     }
 
-    private var liveButton: some View {
-        Button {
-            feedback()
-            broadcastPicker.open()
-        } label: {
-            HStack(spacing: 6) {
+    /// Starts or stops the screen broadcast that feeds real sound to the
+    /// waveform. Without it, the plot shows only the EQ curve.
+    private var liveSoundRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
                 if liveSpectrum.isLive {
-                    Circle().fill(Color.red).frame(width: 7, height: 7)
-                    Text("LIVE").font(.caption.weight(.heavy))
+                    Circle().fill(Color.red).frame(width: 8, height: 8)
+                    Text("Showing live sound")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button("Stop") { feedback(); broadcastPicker.open() }
+                        .font(.subheadline.weight(.semibold))
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .tint(.red)
                 } else {
-                    Image(systemName: "dot.radiowaves.left.and.right").font(.caption.weight(.semibold))
-                    Text("Go Live").font(.caption.weight(.semibold))
+                    Button {
+                        feedback()
+                        if nowPlaying.isMusicAppPlaying {
+                            showingMusicWarning = true
+                        } else {
+                            broadcastPicker.open()
+                        }
+                    } label: {
+                        Label("Show live sound", systemImage: "waveform")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .foregroundStyle(liveSpectrum.isLive ? Color.red : Color.blue)
-            .background(Capsule().fill((liveSpectrum.isLive ? Color.red : Color.blue).opacity(0.15)))
+            .background(BroadcastPickerHost(picker: broadcastPicker).frame(width: 1, height: 1))
+            Text(liveSpectrum.isLive && liveSpectrum.isSilent
+                 ? "No sound is coming through. Apple Music is muted in screen broadcasts; Spotify, YouTube and most other apps work."
+                 : "Draws the sound that's playing, using a screen broadcast. Doesn't work with Apple Music.")
+                .font(.caption)
+                .foregroundStyle(liveSpectrum.isLive && liveSpectrum.isSilent ? Color.orange : Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .buttonStyle(.plain)
-        .background(BroadcastPickerHost(picker: broadcastPicker).frame(width: 1, height: 1))
-        .accessibilityLabel(liveSpectrum.isLive ? "Live audio on. Stop" : "Go Live")
-        .accessibilityHint("Uses the audio that is playing to drive the visualizer.")
+        .alert("Apple Music can't be shown", isPresented: $showingMusicWarning) {
+            Button("Start Anyway") { broadcastPicker.open() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("iOS mutes Apple Music in screen broadcasts, so the waveform will stay flat. Spotify, YouTube and most other apps work.")
+        }
+    }
+
+    private var eqFileMenu: some View {
+        Menu {
+            Button { exportingEQ = true } label: { Label("Export EQ", systemImage: "square.and.arrow.up") }
+                .disabled(controller.equalizer?.bands.isEmpty ?? true)
+            Button { importingEQ = true } label: { Label("Import EQ", systemImage: "square.and.arrow.down") }
+                .disabled(!controller.isReady || controller.equalizer == nil)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(.primary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(Color(.tertiarySystemFill)))
+        }
+        .accessibilityLabel("Equalizer options")
+        .fileExporter(isPresented: $exportingEQ, document: EQDocument(file: currentEQFile), contentType: .json, defaultFilename: "Sound Control EQ") { result in
+            if case .failure = result { eqFileMessage = "The EQ couldn't be saved." }
+        }
+        .fileImporter(isPresented: $importingEQ, allowedContentTypes: [.json]) { result in
+            importEQ(result)
+        }
+        .alert("Equalizer", isPresented: Binding(get: { eqFileMessage != nil }, set: { if !$0 { eqFileMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(eqFileMessage ?? "")
+        }
+    }
+
+    private var currentEQFile: EQFile {
+        let state = controller.equalizer
+        let bands = state?.bands ?? []
+        let hasClearBass = bands.count == 6
+        return EQFile(
+            name: state.map { EqualizerPreset.name(for: $0.presetID) } ?? "Equalizer",
+            clearBass: hasClearBass ? bands[0] : nil,
+            bands: hasClearBass ? Array(bands.dropFirst()) : bands
+        )
+    }
+
+    private func importEQ(_ result: Result<URL, Error>) {
+        guard case .success(let url) = result else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url), let file = try? JSONDecoder().decode(EQFile.self, from: data),
+              file.bands.allSatisfy({ (-10...10).contains($0) }) else {
+            eqFileMessage = "That file isn't a Sound Control EQ."
+            return
+        }
+        if controller.importEqualizer(bands: file.bands, clearBass: file.clearBass) {
+            feedback()
+        } else {
+            eqFileMessage = "That EQ has \(file.bands.count) bands, which doesn't match these headphones."
+        }
     }
 
     private func profileRow(_ state: EqualizerState) -> some View {
@@ -731,5 +811,34 @@ private struct ProfilePickerSheet: View {
             .contentShape(Rectangle())
         }
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+}
+
+// MARK: - EQ file
+
+/// Exported equalizer: the five curve bands (-10...+10) and Clear Bass.
+struct EQFile: Codable {
+    var app = "Sound Control"
+    var version = 1
+    var name: String
+    var clearBass: Int?
+    var bands: [Int]
+}
+
+struct EQDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    let file: EQFile
+
+    init(file: EQFile) { self.file = file }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
+        file = try JSONDecoder().decode(EQFile.self, from: data)
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return FileWrapper(regularFileWithContents: try encoder.encode(file))
     }
 }

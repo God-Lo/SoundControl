@@ -15,13 +15,21 @@
       "localizedDescription": "Unofficial remote for headphones that expose the link2 accessory protocol (tested with the WF-1000XM5): noise cancelling, Ambient level, equalizer presets with a draggable curve and Clear Bass, battery levels, multipoint source switching, a live audio waveform and Siri Shortcuts. Not affiliated with any headphone manufacturer.",
       "iconURL": "https://raw.githubusercontent.com/God-Lo/SoundControl/main/source/icon.png",
       "tintColor": "#2F6BFF",
-      "version": "1.2",
+      "version": "1.3",
       "versionDate": "2026-11-07",
-      "versionDescription": "Show when the headphones confirm a source switch.",
-      "downloadURL": "https://github.com/God-Lo/SoundControl/releases/download/v1.2/SoundControl.ipa",
-      "size": 4748875,
+      "versionDescription": "New EQ look, drag-only points, values on top, export and import.",
+      "downloadURL": "https://github.com/God-Lo/SoundControl/releases/download/v1.3/SoundControl.ipa",
+      "size": 4777596,
       "screenshotURLs": [],
       "versions": [
+        {
+          "version": "1.3",
+          "buildNumber": "4",
+          "date": "2026-11-07",
+          "localizedDescription": "New EQ look, drag-only points, values on top, export and import.",
+          "downloadURL": "https://github.com/God-Lo/SoundControl/releases/download/v1.3/SoundControl.ipa",
+          "size": 4777596
+        },
         {
           "version": "1.2",
           "buildNumber": "3",

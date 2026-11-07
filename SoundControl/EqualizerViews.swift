@@ -90,6 +90,12 @@ final class NowPlayingModel: ObservableObject {
         if forward { player.skipToNextItem() } else { player.skipToPreviousItem() }
     }
 
+    /// The Music app is playing. Its audio is protected and comes through
+    /// silent in screen broadcasts, so the live waveform can't show it.
+    var isMusicAppPlaying: Bool {
+        !systemInfoAvailable ? player.playbackState == .playing : (player.playbackState == .playing && isPlaying)
+    }
+
     /// Current song position, extrapolated while playing.
     func songTime(at date: Date) -> TimeInterval {
         isPlaying ? position + date.timeIntervalSince(positionDate) : position
@@ -257,18 +263,13 @@ struct EqualizerCurve {
 
 // MARK: - Visualizer
 
-/// Mirrored bar visualizer with the EQ curve drawn on top. Drag a handle up or
-/// down to change that band. Bars move while music plays and settle flat when
-/// it stops. iOS does not give apps the audio of other apps, so the bars are a
-/// typical music spectrum shaped by the EQ, not a measurement.
+/// EQ curve with draggable points over a live waveform. Bars appear only while
+/// real levels arrive from the broadcast extension; otherwise the plot shows
+/// just the curve. Styled after Apple's AirPods equalizer; the line's color
+/// depends on distance from 0: blue at 0, then cyan, green, yellow, orange and
+/// red toward +10 and -10.
 struct EqualizerVisualizer: View {
     let bands: [Int]
-    let isPlaying: Bool
-    /// Song position for a given time; the bars are a function of it, so they
-    /// stay consistent across pauses and follow seeks.
-    var songTime: (Date) -> TimeInterval = { $0.timeIntervalSinceReferenceDate }
-    var tempo: Double = 118
-    var seed: UInt64 = 0
     /// Real levels from the broadcast extension; used whenever they are fresh.
     var live: LiveSpectrumReceiver? = nil
     var isLive = false
@@ -278,42 +279,73 @@ struct EqualizerVisualizer: View {
 
     private let barCount = LiveSpectrum.barCount
     private let plotInset: CGFloat = 18
+    /// How close (points) a touch must start to a point to grab it.
+    private let grabRadius: CGFloat = 34
 
-    @State private var transitionStart = Date.distantPast
-    @State private var animating = false
-    @State private var dragIndex: Int?
+    /// Band being dragged (curve index) and its value when the drag began.
+    @State private var drag: (index: Int, startValue: Int)?
+    /// Set when a touch started away from every point; the whole gesture is ignored.
+    @State private var dragMissed = false
+    @State private var canvasSize: CGSize = .zero
 
-    private static let barGradient = Gradient(stops: [
-        .init(color: .yellow, location: 0.0),
-        .init(color: .green, location: 0.12),
-        .init(color: .cyan, location: 0.24),
-        .init(color: .blue, location: 0.38),
-        .init(color: .blue, location: 0.62),
-        .init(color: .cyan, location: 0.76),
-        .init(color: .green, location: 0.88),
-        .init(color: .yellow, location: 1.0),
+    /// Symmetric fade by height: blue at 0, red at +10 (top) and -10 (bottom).
+    static let gainGradient = Gradient(stops: [
+        .init(color: Color(red: 1.00, green: 0.27, blue: 0.23), location: 0.00),
+        .init(color: Color(red: 1.00, green: 0.62, blue: 0.10), location: 0.08),
+        .init(color: Color(red: 0.98, green: 0.86, blue: 0.24), location: 0.18),
+        .init(color: Color(red: 0.30, green: 0.88, blue: 0.52), location: 0.30),
+        .init(color: Color(red: 0.16, green: 0.82, blue: 0.92), location: 0.40),
+        .init(color: Color(red: 0.10, green: 0.52, blue: 1.00), location: 0.50),
+        .init(color: Color(red: 0.16, green: 0.82, blue: 0.92), location: 0.60),
+        .init(color: Color(red: 0.30, green: 0.88, blue: 0.52), location: 0.70),
+        .init(color: Color(red: 0.98, green: 0.86, blue: 0.24), location: 0.82),
+        .init(color: Color(red: 1.00, green: 0.62, blue: 0.10), location: 0.92),
+        .init(color: Color(red: 1.00, green: 0.27, blue: 0.23), location: 1.00),
     ])
 
-    /// Curve color by height: cyan at the bottom, mint around flat, yellow at the top.
-    private static let curveGradient = Gradient(stops: [
-        .init(color: Color(red: 0.98, green: 0.92, blue: 0.35), location: 0.0),
-        .init(color: Color(red: 0.85, green: 0.95, blue: 0.45), location: 0.3),
-        .init(color: Color(red: 0.45, green: 0.95, blue: 0.75), location: 0.5),
-        .init(color: .cyan, location: 0.75),
-        .init(color: .cyan, location: 1.0),
+    /// Waveform bars, as in Apple's equalizer: blue in the middle, then cyan,
+    /// green and yellow toward the tips, with red at the very top and bottom.
+    static let barGradient = Gradient(stops: [
+        .init(color: Color(red: 1.00, green: 0.27, blue: 0.23), location: 0.00),
+        .init(color: Color(red: 0.98, green: 0.86, blue: 0.24), location: 0.07),
+        .init(color: Color(red: 0.30, green: 0.88, blue: 0.52), location: 0.16),
+        .init(color: Color(red: 0.16, green: 0.82, blue: 0.92), location: 0.28),
+        .init(color: Color(red: 0.10, green: 0.56, blue: 1.00), location: 0.42),
+        .init(color: Color(red: 0.10, green: 0.56, blue: 1.00), location: 0.58),
+        .init(color: Color(red: 0.16, green: 0.82, blue: 0.92), location: 0.72),
+        .init(color: Color(red: 0.30, green: 0.88, blue: 0.52), location: 0.84),
+        .init(color: Color(red: 0.98, green: 0.86, blue: 0.24), location: 0.93),
+        .init(color: Color(red: 1.00, green: 0.27, blue: 0.23), location: 1.00),
     ])
+
+    /// The same scale as a single color for a value (-10...+10).
+    static func color(for value: Int) -> Color {
+        let t = min(1, Double(abs(value)) / 10)
+        let stops: [(Double, (Double, Double, Double))] = [
+            (0.0, (0.10, 0.52, 1.00)), (0.2, (0.16, 0.82, 0.92)), (0.4, (0.30, 0.88, 0.52)),
+            (0.64, (0.98, 0.86, 0.24)), (0.84, (1.00, 0.62, 0.10)), (1.0, (1.00, 0.27, 0.23)),
+        ]
+        for i in 1..<stops.count where t <= stops[i].0 {
+            let (t0, c0) = stops[i - 1], (t1, c1) = stops[i]
+            let f = (t - t0) / (t1 - t0)
+            return Color(red: c0.0 + (c1.0 - c0.0) * f, green: c0.1 + (c1.1 - c0.1) * f, blue: c0.2 + (c1.2 - c0.2) * f)
+        }
+        return Color(red: 1.00, green: 0.27, blue: 0.23)
+    }
 
     private var curve: EqualizerCurve { EqualizerCurve(reported: bands) }
 
     var body: some View {
-        VStack(spacing: 10) {
-            TimelineView(.animation(minimumInterval: 1 / 30, paused: !isPlaying && !animating && !isLive)) { timeline in
-                let t = songTime(timeline.date)
+        VStack(spacing: 8) {
+            if !curve.bands.isEmpty {
+                valueRow
+            }
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: !isLive)) { timeline in
                 Canvas { context, size in
-                    draw(in: &context, size: size, time: t, now: timeline.date)
+                    draw(in: &context, size: size, now: timeline.date)
                 }
             }
-            .frame(height: 230)
+            .frame(height: 220)
             .contentShape(Rectangle())
             .gesture(dragGesture, including: editable && !curve.bands.isEmpty ? .all : .subviews)
 
@@ -321,26 +353,32 @@ struct EqualizerVisualizer: View {
                 ForEach(Array(labels.enumerated()), id: \.offset) { index, label in
                     Text(label)
                         .font(.footnote.weight(.bold))
-                        .foregroundStyle(dragIndex == index ? Color.primary : Color.secondary)
+                        .foregroundStyle(drag?.index == index ? Color.primary : Color.secondary)
                         .frame(maxWidth: .infinity)
-                }
-            }
-        }
-        .onChange(of: isPlaying) { _, playing in
-            let start = Date()
-            transitionStart = start
-            animating = true
-            if !playing {
-                // Keep drawing until the bars have settled flat, then stop.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    if transitionStart == start { animating = false }
                 }
             }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Equalizer")
-        .accessibilityValue(curve.bands.map { $0 > 0 ? "+\($0)" : "\($0)" }.joined(separator: ", "))
+        .accessibilityValue(curve.bands.map(Self.signed).joined(separator: ", "))
     }
+
+    /// Current value of each band, above its column.
+    private var valueRow: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(curve.bands.enumerated()), id: \.offset) { index, value in
+                Text(Self.signed(value))
+                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .foregroundStyle(Self.color(for: value))
+                    .scaleEffect(drag?.index == index ? 1.2 : 1)
+                    .animation(.snappy(duration: 0.15), value: drag?.index == index)
+                    .contentTransition(.numericText())
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    static func signed(_ value: Int) -> String { value > 0 ? "+\(value)" : "\(value)" }
 
     private var labels: [String] {
         switch curve.bands.count {
@@ -352,34 +390,43 @@ struct EqualizerVisualizer: View {
 
     // MARK: Interaction
 
+    /// A point moves only when the drag starts on or near it, and it moves by
+    /// the finger's travel. Taps and drags that start elsewhere change nothing.
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { drag in
-                let count = curve.bands.count
-                // Lock onto the column where the finger first landed.
-                let index = dragIndex ?? min(count - 1, max(0, Int(drag.startLocation.x / max(1, columnWidth))))
-                if dragIndex == nil { dragIndex = index }
-                let value = valueForY(drag.location.y)
-                let bandIndex = bands.count == 6 ? index + 1 : index
+        DragGesture(minimumDistance: 4)
+            .onChanged { gesture in
+                if dragMissed { return }
+                if drag == nil {
+                    guard let index = handle(near: gesture.startLocation) else { dragMissed = true; return }
+                    drag = (index, curve.bands[index])
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+                guard let drag else { return }
+                let step = max(1, (canvasSize.height - plotInset * 2) / 20)
+                let value = max(-10, min(10, drag.startValue + Int((-gesture.translation.height / step).rounded())))
+                let bandIndex = bands.count == 6 ? drag.index + 1 : drag.index
                 if bands.indices.contains(bandIndex), bands[bandIndex] != value {
                     UISelectionFeedbackGenerator().selectionChanged()
                     onChange(bandIndex, value)
                 }
             }
             .onEnded { _ in
-                dragIndex = nil
-                onCommit()
+                let changed = drag != nil
+                drag = nil
+                dragMissed = false
+                if changed { onCommit() }
             }
     }
 
-    @State private var canvasSize: CGSize = .zero
-    private var columnWidth: CGFloat { canvasSize.width / CGFloat(max(1, curve.bands.count)) }
-
-    private func valueForY(_ y: CGFloat) -> Int {
-        let top = plotInset, bottom = canvasSize.height - plotInset
-        guard bottom > top else { return 0 }
-        let fraction = 1 - max(0, min(1, (y - top) / (bottom - top)))
-        return Int((fraction * 20).rounded()) - 10
+    private func handle(near location: CGPoint) -> Int? {
+        let size = canvasSize
+        var best: (index: Int, distance: CGFloat)?
+        for i in curve.bands.indices {
+            let center = CGPoint(x: size.width * curve.position(of: i), y: yForGain(Double(curve.bands[i]), size: size))
+            let distance = hypot(center.x - location.x, center.y - location.y)
+            if distance <= grabRadius, distance < (best?.distance ?? .infinity) { best = (i, distance) }
+        }
+        return best?.index
     }
 
     private func yForGain(_ gain: Double, size: CGSize) -> CGFloat {
@@ -389,15 +436,7 @@ struct EqualizerVisualizer: View {
 
     // MARK: Drawing
 
-    /// 0 when paused (flat), 1 while playing, eased in between.
-    private func energy(now: Date) -> Double {
-        let elapsed = now.timeIntervalSince(transitionStart)
-        let t = max(0, min(1, elapsed / 0.45))
-        let eased = t * t * (3 - 2 * t)
-        return isPlaying ? eased : 1 - eased
-    }
-
-    private func draw(in context: inout GraphicsContext, size: CGSize, time: Double, now: Date) {
+    private func draw(in context: inout GraphicsContext, size: CGSize, now: Date) {
         if canvasSize != size {
             DispatchQueue.main.async { canvasSize = size }
         }
@@ -405,11 +444,14 @@ struct EqualizerVisualizer: View {
         let mid = size.height / 2
         let columns = max(1, curve.bands.count)
         let column = size.width / CGFloat(columns)
+        let shading = GraphicsContext.Shading.linearGradient(
+            Self.gainGradient, startPoint: CGPoint(x: 0, y: plotInset), endPoint: CGPoint(x: 0, y: size.height - plotInset)
+        )
 
         // Active column highlight while dragging.
-        if let dragIndex {
+        if let drag {
             context.fill(
-                Path(CGRect(x: column * CGFloat(dragIndex), y: 0, width: column, height: size.height)),
+                Path(CGRect(x: column * CGFloat(drag.index), y: 0, width: column, height: size.height)),
                 with: .linearGradient(
                     Gradient(colors: [.clear, .white.opacity(0.08), .clear]),
                     startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)
@@ -417,144 +459,50 @@ struct EqualizerVisualizer: View {
             )
         }
 
-        // Dashed guide at each handle.
+        // Dashed guide at each point.
         let guideCount = curve.bands.isEmpty ? 3 : columns
         for i in 0..<guideCount {
             let x = size.width * (CGFloat(i) + 0.5) / CGFloat(guideCount)
             var line = Path()
             line.move(to: CGPoint(x: x, y: 0))
             line.addLine(to: CGPoint(x: x, y: size.height))
-            context.stroke(line, with: .color(.secondary.opacity(0.4)), style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
+            context.stroke(line, with: .color(.secondary.opacity(0.35)), style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
         }
 
-        // Bars.
-        let energy = energy(now: now)
-        let slot = size.width / CGFloat(barCount)
-        let barWidth = max(2, slot * 0.55)
-        let barShading = GraphicsContext.Shading.linearGradient(
-            Self.barGradient, startPoint: CGPoint(x: 0, y: plotInset), endPoint: CGPoint(x: 0, y: size.height - plotInset)
-        )
-        let maxHeight = size.height - plotInset * 2
-        let model = SpectrumModel(tempo: tempo, seed: seed)
-        let liveLevels = live?.snapshot(at: now)
-        for i in 0..<barCount {
-            let x = (Double(i) + 0.5) / Double(barCount)
-            var height = barWidth
-            if let liveLevels, liveLevels.indices.contains(i) {
+        // Live bars only; nothing when no live sound is arriving.
+        if let levels = live?.snapshot(at: now) {
+            let slot = size.width / CGFloat(barCount)
+            let barWidth = max(1.5, slot * 0.5)
+            let barShading = GraphicsContext.Shading.linearGradient(
+                Self.barGradient, startPoint: CGPoint(x: 0, y: plotInset), endPoint: CGPoint(x: 0, y: size.height - plotInset)
+            )
+            let maxHeight = size.height - plotInset * 2
+            for i in 0..<barCount where levels.indices.contains(i) {
+                let x = (Double(i) + 0.5) / Double(barCount)
                 let gain = pow(10, curve.barGain(at: x) * 0.045)
-                let target = maxHeight * Double(liveLevels[i]) * gain
-                height = min(maxHeight, max(barWidth, target))
-            } else if energy > 0 {
-                let level = model.level(bar: i, x: x, time: time)
-                let gain = pow(10, curve.barGain(at: x) * 0.045) // ≈0.35× at -10, ≈2.8× at +10
-                let target = maxHeight * level * gain
-                height = barWidth + (min(maxHeight, max(barWidth, target)) - barWidth) * energy
+                let height = min(maxHeight, max(barWidth, maxHeight * Double(levels[i]) * gain))
+                let rect = CGRect(x: slot * CGFloat(i) + (slot - barWidth) / 2, y: mid - height / 2, width: barWidth, height: height)
+                context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: barShading)
             }
-            let rect = CGRect(x: slot * CGFloat(i) + (slot - barWidth) / 2, y: mid - height / 2, width: barWidth, height: height)
-            context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: barShading)
         }
 
-        // EQ curve with handles.
+        // EQ curve with points.
         guard !curve.bands.isEmpty else { return }
         var path = Path()
-        let samples = 120
-        for s in 0...samples {
-            let x = Double(s) / Double(samples)
+        for s in 0...120 {
+            let x = Double(s) / 120
             let point = CGPoint(x: size.width * x, y: yForGain(curve.gain(at: x), size: size))
             if s == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
-        let curveShading = GraphicsContext.Shading.linearGradient(
-            Self.curveGradient, startPoint: CGPoint(x: 0, y: plotInset), endPoint: CGPoint(x: 0, y: size.height - plotInset)
-        )
-        context.stroke(path, with: .color(.black.opacity(0.55)), style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
-        context.stroke(path, with: curveShading, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+        context.stroke(path, with: shading, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
 
         for i in curve.bands.indices {
             let center = CGPoint(x: size.width * curve.position(of: i), y: yForGain(Double(curve.bands[i]), size: size))
-            let radius: CGFloat = dragIndex == i ? 14 : 11
+            let radius: CGFloat = drag?.index == i ? 12 : 9
             let circle = Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
-            context.fill(circle, with: curveShading)
-            context.stroke(circle, with: .color(.black.opacity(0.55)), lineWidth: 3)
-            if dragIndex == i {
-                let value = curve.bands[i]
-                let text = Text(value > 0 ? "+\(value)" : "\(value)")
-                    .font(.caption.weight(.bold).monospacedDigit())
-                    .foregroundStyle(.white)
-                let above = center.y - radius - 12 > 8
-                context.draw(text, at: CGPoint(x: center.x, y: above ? center.y - radius - 12 : center.y + radius + 12))
-            }
+            context.fill(circle, with: .color(Self.color(for: curve.bands[i])))
+            context.stroke(circle, with: .color(.black.opacity(0.6)), lineWidth: 2)
         }
-    }
-}
-
-// MARK: - Spectrum model
-
-/// A stand-in for an FFT of the playing song, built to move like one: smooth
-/// noise that is correlated between neighbouring bars and over time, kick
-/// drums on the beat in the lows, snare on beats 2 and 4 in the mids, hi-hats
-/// on eighth notes in the highs, and slow loudness swells between sections.
-/// It is driven by the song position and tempo, and seeded per song.
-struct SpectrumModel {
-    let tempo: Double
-    let seed: UInt64
-
-    /// Bar height as a fraction of the plot (roughly 0...1) before EQ gain.
-    func level(bar i: Int, x: Double, time t: Double) -> Double {
-        let s = Double(seed % 997)
-        let beats = t * tempo / 60
-        let beat = beats.rounded(.down)
-        let phase = beats - beat
-        let eighthPhase = beats * 2 - (beats * 2).rounded(.down)
-
-        // Average spectrum: strong lows, a vocal/instrument hump, soft highs.
-        let tilt = 0.16 + 0.22 * exp(-x * 3) + 0.4 * exp(-pow((x - 0.07) / 0.09, 2)) + 0.12 * exp(-pow((x - 0.45) / 0.18, 2))
-
-        // Section dynamics (verse/chorus) and phrase-level movement.
-        let section = 0.7 + 0.3 * Self.fbm(t * 0.07 + s, 11.3, octaves: 2)
-
-        // Harmonic content: wide, slowly drifting shapes across the bars.
-        let tonal = Self.fbm(Double(i) * 0.16 + s, t * 1.8, octaves: 3)
-        // Fine grain: bar-to-bar detail that flickers like FFT bins.
-        let grain = Self.noise(Double(i) * 0.9 + s * 3, t * 11)
-
-        // Drums, with slight randomness in how hard each hit lands.
-        let hit = 0.75 + 0.25 * Self.hash(Int(beat), Int(seed & 0xFFFF))
-        let kick = exp(-phase * 7) * exp(-pow((x - 0.06) / 0.08, 2)) * hit
-        let snare = (Int(beat) % 2 == 1 ? exp(-phase * 9) : 0) * exp(-pow((x - 0.55) / 0.25, 2)) * hit
-        let hat = exp(-eighthPhase * 16) * max(0, (x - 0.55) / 0.45)
-
-        var value = tilt * section * (0.2 + 1.1 * tonal) * (0.5 + 0.7 * grain)
-        value += 0.38 * kick + 0.16 * snare + 0.12 * hat * (0.5 + 0.5 * grain)
-        return value * 1.25
-    }
-
-    // Integer hash to 0...1.
-    static func hash(_ a: Int, _ b: Int) -> Double {
-        var h = UInt64(bitPattern: Int64(a)) &* 0x9E3779B97F4A7C15 ^ UInt64(bitPattern: Int64(b)) &* 0xC2B2AE3D27D4EB4F
-        h ^= h >> 29; h &*= 0xBF58476D1CE4E5B9; h ^= h >> 32
-        return Double(h & 0xFFFFFF) / Double(0xFFFFFF)
-    }
-
-    /// Smooth 2D value noise, 0...1.
-    static func noise(_ x: Double, _ y: Double) -> Double {
-        let xi = Int(x.rounded(.down)), yi = Int(y.rounded(.down))
-        let xf = x - Double(xi), yf = y - Double(yi)
-        let u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf)
-        let a = hash(xi, yi), b = hash(xi + 1, yi)
-        let c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1)
-        return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v
-    }
-
-    /// Layered noise, 0...1.
-    static func fbm(_ x: Double, _ y: Double, octaves: Int) -> Double {
-        var total = 0.0, amplitude = 1.0, frequency = 1.0, norm = 0.0
-        for _ in 0..<octaves {
-            total += noise(x * frequency, y * frequency) * amplitude
-            norm += amplitude
-            amplitude *= 0.5
-            frequency *= 2.1
-        }
-        return total / norm
     }
 }
 
