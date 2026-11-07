@@ -19,6 +19,8 @@ https://raw.githubusercontent.com/God-Lo/SoundControl/main/source.json
 
 Or download `SoundControl.ipa` from [Releases](../../releases). It is unsigned: sign it with your own Apple ID or certificate (Xcode, Sideloadly, AltStore, SideStore) or load it in LiveContainer.
 
+For the live waveform and Shortcuts inside LiveContainer, use [my LiveContainer fork](https://github.com/God-Lo/LiveContainer), which supports broadcast extensions and shortcuts.
+
 ## Build
 
 Open `SoundControl/SoundControl.xcodeproj` in Xcode 26 or later, choose your signing team for both targets, and run on an iPhone. Pair the headphones in iOS Settings first.
