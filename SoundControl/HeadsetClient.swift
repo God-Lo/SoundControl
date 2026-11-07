@@ -261,8 +261,9 @@ final class HeadsetClient {
             onStatus?("Audio source switching is not ready", false, "Wait for the headset capability check to finish.")
             return
         }
-        let normalized = address.uppercased()
-        let addressBytes = Array(normalized.utf8)
+        // Send the address exactly as the headset reported it; changing its
+        // case can make the headset ignore it.
+        let addressBytes = Array(address.utf8)
         guard addressBytes.count == Table2.addressLength else {
             onStatus?("Could not switch audio source", false, "The headset reported an unusable device address.")
             return
@@ -271,7 +272,7 @@ final class HeadsetClient {
             payload: [Table2.setExtendedParam, Table2.inquiredSourceSwitchControl] + addressBytes,
             type: Table2.frameType
         )
-        switchTarget = (normalized, Date())
+        switchTarget = (address, Date())
         scheduleMultipointRefresh()
     }
 
@@ -551,7 +552,7 @@ final class HeadsetClient {
         guard let target = switchTarget else { return }
         if Date().timeIntervalSince(target.requested) > 10 { switchTarget = nil; return }
         guard let last = lastRawPlaybackIndex, raw != last,
-              let position = devices.firstIndex(where: { $0.address.uppercased() == target.address }) else { return }
+              let position = devices.firstIndex(where: { $0.address.caseInsensitiveCompare(target.address) == .orderedSame }) else { return }
         switchTarget = nil
         let base: Int
         if raw == position { base = 0 } else if raw == position + 1 { base = 1 } else { return }

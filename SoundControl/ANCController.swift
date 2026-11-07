@@ -200,8 +200,9 @@ final class ANCController: ObservableObject {
     }
 
     func switchAudioSource(to device: MultipointDevice) {
-        guard isReady, device.isConnected, device.address != activeSourceAddress,
-              device.address != pendingSourceAddress else { return }
+        // Always send, even to the device marked as playing: the marker can be
+        // wrong, and the headset simply keeps playback where it already is.
+        guard isReady, device.isConnected, device.address != pendingSourceAddress else { return }
         pendingSourceAddress = device.address
         sourceSwitchFailed = false
         protocolClient?.switchAudioSource(to: device.address)
