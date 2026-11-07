@@ -11,11 +11,22 @@ An unofficial iOS remote for compatible wireless headphones that expose the `lin
 
 ## Install
 
-Download `SoundControl.ipa` from [Releases](../../releases). It is unsigned: sign it with your own Apple ID or certificate (Xcode, Sideloadly, AltStore, SideStore) or load it in LiveContainer.
+**Add as a source** in LiveContainer, AltStore or SideStore:
+
+```
+https://raw.githubusercontent.com/God-Lo/SoundControl/main/source.json
+```
+
+Or download `SoundControl.ipa` from [Releases](../../releases). It is unsigned: sign it with your own Apple ID or certificate (Xcode, Sideloadly, AltStore, SideStore) or load it in LiveContainer.
 
 ## Build
 
 Open `SoundControl/SoundControl.xcodeproj` in Xcode 26 or later, choose your signing team for both targets, and run on an iPhone. Pair the headphones in iOS Settings first.
+
+## Contributors
+
+- [God-Lo](https://github.com/God-Lo)
+- [Claude](https://claude.com/claude-code) (Anthropic)
 
 ## Disclaimer
 
