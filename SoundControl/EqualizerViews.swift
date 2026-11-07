@@ -3,7 +3,6 @@ import MediaPlayer
 import Combine
 import Network
 import ReplayKit
-import MachO
 
 // MARK: - Now playing
 
@@ -603,54 +602,23 @@ final class BroadcastPicker: ObservableObject {
     /// signing tool dropped it), so the sheet would only offer Screen Recording.
     @Published private(set) var extensionMissing = false
 
-    /// Bundle ID of the embedded LiveAudio extension, read from the installed
-    /// app rather than hard-coded: sideloading tools often rewrite bundle IDs,
-    /// and a stale ID makes iOS fall back to its own Screen Recording.
+    /// Bundle ID of the embedded LiveAudio extension, read from the app bundle
+    /// rather than hard-coded, since signing tools may rewrite bundle IDs.
     static let extensionID: String? = {
-        for plugins in pluginFolders {
-            guard let items = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) else { continue }
-            for url in items.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) where url.pathExtension == "appex" {
-                guard let bundle = Bundle(url: url),
-                      let info = bundle.infoDictionary?["NSExtension"] as? [String: Any],
-                      info["NSExtensionPointIdentifier"] as? String == "com.apple.broadcast-services-upload" else { continue }
-                return bundle.bundleIdentifier
-            }
+        guard let plugins = Bundle.main.builtInPlugInsURL,
+              let items = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) else { return nil }
+        for url in items.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) where url.pathExtension == "appex" {
+            guard let bundle = Bundle(url: url),
+                  let info = bundle.infoDictionary?["NSExtension"] as? [String: Any],
+                  info["NSExtensionPointIdentifier"] as? String == "com.apple.broadcast-services-upload" else { continue }
+            return bundle.bundleIdentifier
         }
         return nil
     }()
 
-    /// iOS registers app extensions only for apps it installed itself (under
-    /// /Containers/Bundle/Application/). Installed normally, that is this app.
-    /// Run inside LiveContainer, it is the LiveContainer host, whose own
-    /// broadcast extension is then used. Anything else would make the picker
-    /// fall back to Screen Recording.
-    private static var pluginFolders: [URL] {
-        var folders: [URL] = []
-        if isNativelyInstalled, let own = Bundle.main.builtInPlugInsURL { folders.append(own) }
-        if let host = hostAppURL { folders.append(host.appendingPathComponent("PlugIns")) }
-        return folders
-    }
-
-    /// The installed app whose executable is running this process, when that
-    /// is not this app (LiveContainer and similar hosts).
-    private static var hostAppURL: URL? {
-        guard let image = _dyld_get_image_name(0) else { return nil }
-        let app = URL(fileURLWithPath: String(cString: image)).resolvingSymlinksInPath().deletingLastPathComponent()
-        guard app.pathExtension == "app",
-              app.path.contains("/Containers/Bundle/Application/"),
-              app.standardizedFileURL != Bundle.main.bundleURL.resolvingSymlinksInPath().standardizedFileURL else { return nil }
-        return app
-    }
-
-    static let isNativelyInstalled = Bundle.main.bundlePath.contains("/Containers/Bundle/Application/")
-
     func open() {
-        let id = Self.extensionID
-        // Installed normally without an extension, the sheet could only offer
-        // Screen Recording, so explain instead. Inside LiveContainer, its own
-        // extension ("LiveContainer" in the sheet) loads ours; if its ID could
-        // not be read, show the full list so the user can pick it.
-        if id == nil && Self.isNativelyInstalled {
+        // Without an extension the sheet could only offer Screen Recording.
+        guard let id = Self.extensionID else {
             extensionMissing = true
             return
         }
