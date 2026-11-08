@@ -55,6 +55,7 @@ final class WidgetSync {
         compare.updated = last.updated
         guard compare != last else { return }
         last = snapshot
+        backgroundLog.notice("Widgets updated: connected \(snapshot.isConnected, privacy: .public), mode \(snapshot.mode?.rawValue ?? "-", privacy: .public), app state \(UIApplication.shared.applicationState.rawValue, privacy: .public)")
         snapshot.save()
         WidgetCenter.shared.reloadAllTimelines()
         if #available(iOS 18.0, *) {

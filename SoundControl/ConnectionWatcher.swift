@@ -1,5 +1,8 @@
 import CoreBluetooth
 import Foundation
+import os
+
+let backgroundLog = Logger(subsystem: "SoundControl", category: "background")
 
 /// Asks iOS to tell the app when a Bluetooth audio device connects or
 /// disconnects, even while the app is in the background or not running
@@ -23,17 +26,21 @@ final class ConnectionWatcher: NSObject, CBCentralManagerDelegate {
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        backgroundLog.notice("Bluetooth state \(central.state.rawValue, privacy: .public)")
         guard central.state == .poweredOn else { return }
         central.registerForConnectionEvents(options: [.serviceUUIDs: audioServices])
     }
 
-    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {}
+    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
+        backgroundLog.notice("Bluetooth state restored")
+    }
 
     func centralManager(
         _ central: CBCentralManager,
         connectionEventDidOccur event: CBConnectionEvent,
         for peripheral: CBPeripheral
     ) {
+        backgroundLog.notice("Connection event \(event.rawValue, privacy: .public) for \(peripheral.name ?? "?", privacy: .public)")
         Task { @MainActor in
             let controller = ANCController.shared
             // The accessory list can lag the Bluetooth event slightly.

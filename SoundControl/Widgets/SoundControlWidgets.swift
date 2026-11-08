@@ -152,10 +152,12 @@ struct StatusWidgetView: View {
         VStack(alignment: .leading, spacing: 8) {
             topRow
             modeButtons
+                .frame(height: 50)
             HStack(spacing: 6) {
                 sourceChip
                 equalizerChip
             }
+            .frame(maxHeight: .infinity)
         }
     }
 
@@ -163,6 +165,7 @@ struct StatusWidgetView: View {
         VStack(alignment: .leading, spacing: 10) {
             topRow
             modeButtons
+                .frame(height: 56)
             sectionTitle("Audio Source")
             if snapshot.devices.isEmpty {
                 Text("No devices reported")
@@ -230,15 +233,16 @@ struct StatusWidgetView: View {
         .minimumScaleFactor(0.7)
     }
 
+    /// The name never truncates; battery takes the space left and switches
+    /// to its short form (then shrinks) when needed.
     private var topRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            header
+            header.fixedSize(horizontal: true, vertical: false)
             Spacer(minLength: 4)
             ViewThatFits(in: .horizontal) {
-                batteryLine(compact: false)
+                batteryLine(compact: false).fixedSize()
                 batteryLine(compact: true)
             }
-            .layoutPriority(1)
         }
     }
 
@@ -280,9 +284,9 @@ struct StatusWidgetView: View {
             Image(systemName: symbol).foregroundStyle(.secondary)
             Text(text).lineLimit(1).minimumScaleFactor(0.7)
         }
-        .font(.caption.weight(.semibold))
-        .frame(maxWidth: .infinity, minHeight: 30)
+        .font(.subheadline.weight(.semibold))
         .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, minHeight: 30, maxHeight: .infinity)
         .background(chipBackground(selected: false))
         .contentShape(Rectangle())
     }
@@ -376,7 +380,7 @@ struct StatusWidgetView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            .frame(maxWidth: .infinity, minHeight: 46)
+            .frame(maxWidth: .infinity, minHeight: 46, maxHeight: .infinity)
             .foregroundStyle(active && fullColor ? Color.white : Color.primary)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -456,7 +460,7 @@ struct AudioSourceControl: ControlWidget {
         StaticControlConfiguration(kind: WidgetKinds.audioSource, provider: SourceValueProvider()) { source in
             ControlWidgetButton(action: WidgetSwitchSourceIntent()) {
                 if source == "unavailable" {
-                    Label("Unavailable", systemImage: "arrow.left.arrow.right")
+                    Label("Unavailable", systemImage: "nosign")
                 } else {
                     Label(source.isEmpty ? "Audio Source" : source, systemImage: "arrow.left.arrow.right")
                 }

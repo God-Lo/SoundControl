@@ -83,6 +83,7 @@ final class ANCController: ObservableObject {
     }
 
     @objc private func accessoryChanged(_ notification: Notification) {
+        backgroundLog.notice("Accessory \(notification.name.rawValue, privacy: .public)")
         Task { @MainActor in refreshAccessories() }
     }
 
@@ -439,6 +440,7 @@ final class ANCController: ObservableObject {
             Task { @MainActor in self?.ambientLevel = level }
         }
         client.onMode = { [weak self] mode in
+            backgroundLog.notice("Headset reported mode")
             Task { @MainActor in
                 self?.currentMode = mode
                 self?.modeRevision += 1
