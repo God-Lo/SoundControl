@@ -64,7 +64,10 @@ final class ANCController: ObservableObject {
         )
         manager.registerForLocalNotifications()
         refreshAccessories()
+        widgetSync = WidgetSync(controller: self)
     }
+
+    private var widgetSync: WidgetSync?
 
     deinit {
         NotificationCenter.default.removeObserver(self)

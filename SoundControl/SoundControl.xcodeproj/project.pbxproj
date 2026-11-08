@@ -19,6 +19,11 @@
 		A1000000000000000000000A /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000B /* SampleHandler.swift */; };
 		A1000000000000000000000B /* LiveAudio.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000D /* LiveAudio.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A1000000000000000000000C /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000E /* AppIcon.icon */; };
+		A1000000000000000000000D /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000F /* WidgetShared.swift */; };
+		A1000000000000000000000E /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000F /* WidgetShared.swift */; };
+		A1000000000000000000000F /* SoundControlWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* SoundControlWidgets.swift */; };
+		A10000000000000000000010 /* WidgetSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* WidgetSync.swift */; };
+		A10000000000000000000011 /* Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* Widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,6 +33,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = E50000000000000000000005;
 			remoteInfo = LiveAudio;
+		};
+		E5000000000000000000000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E50000000000000000000004 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E5000000000000000000000C;
+			remoteInfo = Widgets;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -39,6 +51,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				A1000000000000000000000B /* LiveAudio.appex in Embed Foundation Extensions */,
+				A10000000000000000000011 /* Widgets.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -60,9 +73,23 @@
 		B2000000000000000000000C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B2000000000000000000000D /* LiveAudio.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveAudio.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2000000000000000000000E /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		B2000000000000000000000F /* WidgetShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShared.swift; sourceTree = "<group>"; };
+		B20000000000000000000010 /* SoundControlWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundControlWidgets.swift; sourceTree = "<group>"; };
+		B20000000000000000000011 /* WidgetSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSync.swift; sourceTree = "<group>"; };
+		B20000000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B20000000000000000000013 /* Widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = Widgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000000000000000000014 /* SoundControl.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SoundControl.entitlements; sourceTree = "<group>"; };
+		B20000000000000000000015 /* Widgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Widgets.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C30000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C30000000000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -99,9 +126,12 @@
 				B20000000000000000000008 /* AppShortcuts.swift */,
 				B20000000000000000000009 /* EqualizerViews.swift */,
 				B2000000000000000000000A /* LiveSpectrum.swift */,
+				B20000000000000000000011 /* WidgetSync.swift */,
+				B20000000000000000000014 /* SoundControl.entitlements */,
 				B2000000000000000000000E /* AppIcon.icon */,
 				B20000000000000000000006 /* Info.plist */,
 				D40000000000000000000004 /* LiveAudio */,
+				D40000000000000000000005 /* Widgets */,
 			);
 			path = .;
 			sourceTree = "<group>";
@@ -111,6 +141,7 @@
 			children = (
 				B20000000000000000000007 /* SoundControl.app */,
 				B2000000000000000000000D /* LiveAudio.appex */,
+				B20000000000000000000013 /* Widgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -122,6 +153,17 @@
 				B2000000000000000000000C /* Info.plist */,
 			);
 			path = LiveAudio;
+			sourceTree = "<group>";
+		};
+		D40000000000000000000005 /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				B2000000000000000000000F /* WidgetShared.swift */,
+				B20000000000000000000010 /* SoundControlWidgets.swift */,
+				B20000000000000000000012 /* Info.plist */,
+				B20000000000000000000015 /* Widgets.entitlements */,
+			);
+			path = Widgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -140,6 +182,7 @@
 			);
 			dependencies = (
 				E50000000000000000000009 /* PBXTargetDependency */,
+				E5000000000000000000000E /* PBXTargetDependency */,
 			);
 			name = SoundControl;
 			productName = SoundControl;
@@ -162,6 +205,22 @@
 			productReference = B2000000000000000000000D /* LiveAudio.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		E5000000000000000000000C /* Widgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F70000000000000000000004 /* Build configuration list for PBXNativeTarget "Widgets" */;
+			buildPhases = (
+				E5000000000000000000000D /* Sources */,
+				C30000000000000000000003 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Widgets;
+			productName = Widgets;
+			productReference = B20000000000000000000013 /* Widgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -175,6 +234,9 @@
 						CreatedOnToolsVersion = 16.0;
 					};
 					E50000000000000000000005 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					E5000000000000000000000C = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -194,6 +256,7 @@
 			targets = (
 				E50000000000000000000001 /* SoundControl */,
 				E50000000000000000000005 /* LiveAudio */,
+				E5000000000000000000000C /* Widgets */,
 			);
 		};
 /* End PBXProject section */
@@ -222,6 +285,8 @@
 				A10000000000000000000006 /* AppShortcuts.swift in Sources */,
 				A10000000000000000000007 /* EqualizerViews.swift in Sources */,
 				A10000000000000000000008 /* LiveSpectrum.swift in Sources */,
+				A1000000000000000000000D /* WidgetShared.swift in Sources */,
+				A10000000000000000000010 /* WidgetSync.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -234,6 +299,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E5000000000000000000000D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000000000000000000000E /* WidgetShared.swift in Sources */,
+				A1000000000000000000000F /* SoundControlWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -242,9 +316,66 @@
 			target = E50000000000000000000005 /* LiveAudio */;
 			targetProxy = E5000000000000000000000A /* PBXContainerItemProxy */;
 		};
+		E5000000000000000000000E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E5000000000000000000000C /* Widgets */;
+			targetProxy = E5000000000000000000000B /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		F60000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Widgets/Widgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.SoundControl.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_EXTENSION";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F60000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Widgets/Widgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.SoundControl.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_EXTENSION";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		F60000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -268,6 +399,7 @@
 				CURRENT_PROJECT_VERSION = 6;
 				GENERATE_INFOPLIST_FILE = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SoundControl.entitlements;
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.5;
@@ -286,6 +418,7 @@
 				CURRENT_PROJECT_VERSION = 6;
 				GENERATE_INFOPLIST_FILE = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SoundControl.entitlements;
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.5;
@@ -348,6 +481,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		F70000000000000000000004 /* Build configuration list for PBXNativeTarget "Widgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F60000000000000000000007 /* Debug */,
+				F60000000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		F70000000000000000000001 /* Build configuration list for PBXProject "SoundControl" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

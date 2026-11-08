@@ -1,0 +1,151 @@
+import AppIntents
+import Foundation
+import WidgetKit
+
+/// Shared by the app and the widget extension.
+
+/// Last known headphone state, written by the app for widgets and controls.
+struct HeadphoneSnapshot: Codable, Equatable {
+    var name = "Headphones"
+    var isConnected = false
+    var mode: WidgetMode?
+    var supportsNoiseCancellation = true
+    var left: Int?
+    var right: Int?
+    var single: Int?
+    var caseLevel: Int?
+    var source: String?
+    var updated = Date()
+
+    static let appGroup = "group.com.example.SoundControl"
+    private static let key = "headphoneSnapshot"
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: appGroup) ?? .standard
+    }
+
+    static func load() -> HeadphoneSnapshot {
+        guard let data = defaults.data(forKey: key),
+              let snapshot = try? JSONDecoder().decode(HeadphoneSnapshot.self, from: data) else {
+            return HeadphoneSnapshot()
+        }
+        return snapshot
+    }
+
+    func save() {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        Self.defaults.set(data, forKey: Self.key)
+    }
+}
+
+enum WidgetMode: String, Codable, AppEnum {
+    case anc
+    case ambient
+    case off
+
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Listening Mode")
+    static var caseDisplayRepresentations: [WidgetMode: DisplayRepresentation] = [
+        .anc: "Noise Cancelling",
+        .ambient: "Ambient",
+        .off: "Off"
+    ]
+
+    var title: String {
+        switch self {
+        case .anc: return "Noise Cancelling"
+        case .ambient: return "Ambient"
+        case .off: return "Off"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .anc: return "ANC"
+        case .ambient: return "Ambient"
+        case .off: return "Off"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .anc: return "person.wave.2.fill"
+        case .ambient: return "ear.fill"
+        case .off: return "circle.slash"
+        }
+    }
+}
+
+enum WidgetKinds {
+    static let status = "HeadphoneStatus"
+    static let noiseControl = "NoiseControlButton"
+    static let audioSource = "AudioSourceButton"
+}
+
+// Widget and control actions. `AudioPlaybackIntent` makes the system run them
+// in the app's process, which owns the accessory session; the extension copy
+// only exists so widgets can reference the type.
+
+struct WidgetSetModeIntent: AudioPlaybackIntent {
+    static var title: LocalizedStringResource = "Set Listening Mode"
+    static var isDiscoverable = false
+
+    @Parameter(title: "Mode") var mode: WidgetMode
+
+    init() {}
+    init(mode: WidgetMode) { self.mode = mode }
+
+    func perform() async throws -> some IntentResult {
+        #if !WIDGET_EXTENSION
+        try await ANCController.shared.performShortcutMode(mode.controllerMode)
+        #endif
+        return .result()
+    }
+}
+
+struct WidgetToggleModeIntent: AudioPlaybackIntent {
+    static var title: LocalizedStringResource = "Toggle ANC and Ambient"
+    static var isDiscoverable = false
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+        #if !WIDGET_EXTENSION
+        _ = try await ANCController.shared.performShortcutToggle()
+        #endif
+        return .result()
+    }
+}
+
+struct WidgetSwitchSourceIntent: AudioPlaybackIntent {
+    static var title: LocalizedStringResource = "Switch Audio Source"
+    static var isDiscoverable = false
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+        #if !WIDGET_EXTENSION
+        _ = try await ANCController.shared.performShortcutSwitchAudioSource()
+        #endif
+        return .result()
+    }
+}
+
+#if !WIDGET_EXTENSION
+extension WidgetMode {
+    init(_ mode: ANCMode) {
+        switch mode {
+        case .anc: self = .anc
+        case .ambient: self = .ambient
+        case .off: self = .off
+        }
+    }
+
+    var controllerMode: ANCMode {
+        switch self {
+        case .anc: return .anc
+        case .ambient: return .ambient
+        case .off: return .off
+        }
+    }
+}
+#endif
