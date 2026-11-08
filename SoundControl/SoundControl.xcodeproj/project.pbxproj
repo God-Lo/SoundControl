@@ -23,7 +23,6 @@
 		A1000000000000000000000E /* WidgetShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000F /* WidgetShared.swift */; };
 		A1000000000000000000000F /* SoundControlWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* SoundControlWidgets.swift */; };
 		A10000000000000000000010 /* WidgetSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* WidgetSync.swift */; };
-		A10000000000000000000012 /* ConnectionWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000016 /* ConnectionWatcher.swift */; };
 		A10000000000000000000011 /* Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* Widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -79,7 +78,6 @@
 		B20000000000000000000011 /* WidgetSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSync.swift; sourceTree = "<group>"; };
 		B20000000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B20000000000000000000013 /* Widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = Widgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		B20000000000000000000016 /* ConnectionWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionWatcher.swift; sourceTree = "<group>"; };
 		B20000000000000000000014 /* SoundControl.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SoundControl.entitlements; sourceTree = "<group>"; };
 		B20000000000000000000015 /* Widgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Widgets.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -129,7 +127,6 @@
 				B20000000000000000000009 /* EqualizerViews.swift */,
 				B2000000000000000000000A /* LiveSpectrum.swift */,
 				B20000000000000000000011 /* WidgetSync.swift */,
-				B20000000000000000000016 /* ConnectionWatcher.swift */,
 				B20000000000000000000014 /* SoundControl.entitlements */,
 				B2000000000000000000000E /* AppIcon.icon */,
 				B20000000000000000000006 /* Info.plist */,
@@ -290,7 +287,6 @@
 				A10000000000000000000008 /* LiveSpectrum.swift in Sources */,
 				A1000000000000000000000D /* WidgetShared.swift in Sources */,
 				A10000000000000000000010 /* WidgetSync.swift in Sources */,
-				A10000000000000000000012 /* ConnectionWatcher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

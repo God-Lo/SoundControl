@@ -168,6 +168,20 @@ struct GetAudioSourceIntent: AppIntent {
 }
 
 @available(iOS 17.0, *)
+struct UpdateHeadphoneInfoIntent: AppIntent {
+    static var title: LocalizedStringResource = "Update Headphone Info"
+    static var description = IntentDescription("Re-read the headphones and update widgets and Control Center. Returns whether they are connected.")
+    static var openAppWhenRun = false
+
+    init() {}
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<Bool> {
+        .result(value: await ANCController.shared.performShortcutUpdateInfo())
+    }
+}
+
+@available(iOS 17.0, *)
 struct SoundControlShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -211,6 +225,12 @@ struct SoundControlShortcuts: AppShortcutsProvider {
             phrases: ["Get audio source with \(.applicationName)"],
             shortTitle: "Audio Source",
             systemImageName: "hifispeaker"
+        )
+        AppShortcut(
+            intent: UpdateHeadphoneInfoIntent(),
+            phrases: ["Update headphone info with \(.applicationName)"],
+            shortTitle: "Update Info",
+            systemImageName: "arrow.clockwise"
         )
     }
 }

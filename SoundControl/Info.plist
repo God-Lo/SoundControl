@@ -33,8 +33,6 @@
 	<string>17.0</string>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Sound Control shows the song playing in Music next to the equalizer.</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Sound Control updates its widgets when your headphones connect or disconnect.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -43,7 +41,6 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>external-accessory</string>
-		<string>bluetooth-central</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>

@@ -6,10 +6,7 @@ struct SoundControlApp: App {
     @StateObject private var controller = ANCController.shared
 
     init() {
-        // Also runs when iOS launches the app in the background for a
-        // connection event, before any window exists.
         backgroundLog.notice("App launched, state \(UIApplication.shared.applicationState.rawValue, privacy: .public)")
-        ConnectionWatcher.shared.start()
     }
 
     var body: some Scene {

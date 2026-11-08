@@ -3,6 +3,9 @@ import Foundation
 import UIKit
 import UserNotifications
 import WidgetKit
+import os
+
+let backgroundLog = Logger(subsystem: "SoundControl", category: "background")
 
 /// Copies the controller's state to the shared snapshot and reloads widgets
 /// and Control Center controls when it changes. With the external-accessory
