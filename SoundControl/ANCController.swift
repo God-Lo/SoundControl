@@ -340,49 +340,6 @@ final class ANCController: ObservableObject {
         return active.displayName
     }
 
-    /// Re-reads the headphones and updates widgets and controls, for a
-    /// Shortcuts automation on Bluetooth connect or disconnect. Right after a
-    /// connection the accessory can appear late and the headset can ignore
-    /// the first setup request, so this waits, retries setup, and waits for
-    /// mode, EQ, battery and sources before updating.
-    func performShortcutUpdateInfo() async -> Bool {
-        for attempt in 0..<8 {
-            if accessoryAvailable { break }
-            if attempt < 7 { try? await Task.sleep(for: .milliseconds(500)) }
-        }
-        guard accessoryAvailable else {
-            refreshAccessories()
-            syncWidgets()
-            return false
-        }
-
-        let wasReady = isReady
-        for attempt in 0..<3 where !isReady {
-            if attempt > 0, isConnected {
-                protocolClient?.start()
-            } else {
-                refreshAccessories()
-            }
-            for _ in 0..<20 where !isReady {
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-        }
-
-        if isReady {
-            // A fresh setup already requests everything.
-            if wasReady { refreshDeviceState() }
-            for _ in 0..<30 where !hasFullInfo {
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-        }
-        syncWidgets()
-        return isConnected
-    }
-
-    private var hasFullInfo: Bool {
-        currentMode != nil && equalizer != nil && battery.hasAny && !multipointDevices.isEmpty
-    }
-
     func performWidgetSwitch(to address: String) async throws {
         try await waitUntilReady()
         _ = try await waitForAudioSources()
