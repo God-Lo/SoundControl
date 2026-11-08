@@ -15,6 +15,7 @@ struct HeadphoneSnapshot: Codable, Equatable {
     var single: Int?
     var caseLevel: Int?
     var source: String?
+    var equalizer: String?
     var updated = Date()
 
     static let appGroup = "group.com.example.SoundControl"
@@ -82,8 +83,8 @@ enum WidgetKinds {
 }
 
 // Widget and control actions. `AudioPlaybackIntent` makes the system run them
-// in the app's process, which owns the accessory session; the extension copy
-// only exists so widgets can reference the type.
+// in the app's process (launching it in the background if needed), which owns
+// the accessory session. The extension copy only lets widgets reference them.
 
 struct WidgetSetModeIntent: AudioPlaybackIntent {
     static var title: LocalizedStringResource = "Set Listening Mode"
@@ -96,7 +97,7 @@ struct WidgetSetModeIntent: AudioPlaybackIntent {
 
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
-        try await ANCController.shared.performShortcutMode(mode.controllerMode)
+        await WidgetActions.run { try await $0.performShortcutMode(mode.controllerMode) }
         #endif
         return .result()
     }
@@ -110,7 +111,7 @@ struct WidgetToggleModeIntent: AudioPlaybackIntent {
 
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
-        _ = try await ANCController.shared.performShortcutToggle()
+        await WidgetActions.run { _ = try await $0.performShortcutToggle() }
         #endif
         return .result()
     }
@@ -124,7 +125,7 @@ struct WidgetSwitchSourceIntent: AudioPlaybackIntent {
 
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
-        _ = try await ANCController.shared.performShortcutSwitchAudioSource()
+        await WidgetActions.run { _ = try await $0.performShortcutSwitchAudioSource() }
         #endif
         return .result()
     }

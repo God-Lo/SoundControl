@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct SoundControlApp: App {
@@ -9,6 +10,12 @@ struct SoundControlApp: App {
             ContentView(controller: controller)
                 .onOpenURL { url in
                     Task { await handleShortcutURL(url) }
+                }
+                .task {
+                    // Lets widget and Control Center buttons report problems.
+                    let center = UNUserNotificationCenter.current()
+                    center.delegate = NotificationPresenter.shared
+                    _ = try? await center.requestAuthorization(options: [.alert, .sound])
                 }
         }
     }

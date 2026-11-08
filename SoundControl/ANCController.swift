@@ -69,6 +69,14 @@ final class ANCController: ObservableObject {
 
     private var widgetSync: WidgetSync?
 
+    /// Writes the current state to the widgets right away.
+    func syncWidgets() { widgetSync?.syncNow() }
+
+    /// True when iOS currently lists a compatible accessory.
+    var accessoryAvailable: Bool {
+        manager.connectedAccessories.contains { $0.protocolStrings.contains(HeadsetClient.accessoryProtocol) }
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
         manager.unregisterForLocalNotifications()
