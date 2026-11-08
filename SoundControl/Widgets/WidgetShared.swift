@@ -16,7 +16,25 @@ struct HeadphoneSnapshot: Codable, Equatable {
     var caseLevel: Int?
     var source: String?
     var equalizer: String?
+    var equalizerID: Int?
+    /// Connected multipoint devices, in the order the headphones report them.
+    var devices: [Device] = []
+    /// EQ presets the headphones offer.
+    var presets: [Preset] = []
     var updated = Date()
+
+    struct Device: Codable, Equatable, Hashable {
+        var address: String
+        var name: String
+        var isActive: Bool
+    }
+
+    struct Preset: Codable, Equatable, Hashable {
+        var id: Int
+        var name: String
+    }
+
+    var canSwitchSource: Bool { isConnected && devices.count >= 2 }
 
     static let appGroup = "group.com.example.SoundControl"
     private static let key = "headphoneSnapshot"
@@ -126,6 +144,54 @@ struct WidgetSwitchSourceIntent: AudioPlaybackIntent {
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
         await WidgetActions.run { _ = try await $0.performShortcutSwitchAudioSource() }
+        #endif
+        return .result()
+    }
+}
+
+struct WidgetSwitchToDeviceIntent: AudioPlaybackIntent {
+    static var title: LocalizedStringResource = "Switch to Device"
+    static var isDiscoverable = false
+
+    @Parameter(title: "Address") var address: String
+
+    init() {}
+    init(address: String) { self.address = address }
+
+    func perform() async throws -> some IntentResult {
+        #if !WIDGET_EXTENSION
+        await WidgetActions.run { try await $0.performWidgetSwitch(to: address) }
+        #endif
+        return .result()
+    }
+}
+
+struct WidgetSetEqualizerIntent: AudioPlaybackIntent {
+    static var title: LocalizedStringResource = "Set Equalizer"
+    static var isDiscoverable = false
+
+    @Parameter(title: "Preset") var presetID: Int
+
+    init() {}
+    init(presetID: Int) { self.presetID = presetID }
+
+    func perform() async throws -> some IntentResult {
+        #if !WIDGET_EXTENSION
+        await WidgetActions.run { try await $0.performWidgetEqualizer(UInt8(clamping: presetID)) }
+        #endif
+        return .result()
+    }
+}
+
+struct WidgetNextEqualizerIntent: AudioPlaybackIntent {
+    static var title: LocalizedStringResource = "Next Equalizer Preset"
+    static var isDiscoverable = false
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+        #if !WIDGET_EXTENSION
+        await WidgetActions.run { try await $0.performWidgetNextEqualizer() }
         #endif
         return .result()
     }

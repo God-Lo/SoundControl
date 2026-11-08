@@ -43,6 +43,16 @@ extension HeadphoneSnapshot {
         snapshot.caseLevel = 60
         snapshot.source = "iPhone"
         snapshot.equalizer = "Bass Boost"
+        snapshot.equalizerID = 0x16
+        snapshot.devices = [
+            .init(address: "A", name: "iPhone", isActive: true),
+            .init(address: "B", name: "MacBook", isActive: false)
+        ]
+        snapshot.presets = [
+            (0x00, "Off"), (0x10, "Bright"), (0x11, "Excited"), (0x12, "Mellow"),
+            (0x13, "Relaxed"), (0x14, "Vocal"), (0x15, "Treble Boost"), (0x16, "Bass Boost"),
+            (0x17, "Speech"), (0xA0, "Manual"), (0xA1, "Custom 1"), (0xA2, "Custom 2")
+        ].map { .init(id: $0.0, name: $0.1) }
         return snapshot
     }
 }
@@ -81,7 +91,7 @@ struct StatusWidget: Widget {
         }
         .configurationDisplayName("Headphones")
         .description("Listening mode, audio source, EQ and battery.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -96,10 +106,12 @@ struct StatusWidgetView: View {
         Group {
             if !snapshot.isConnected {
                 disconnected
-            } else if family == .systemMedium {
-                medium
             } else {
-                small
+                switch family {
+                case .systemLarge: large
+                case .systemMedium: medium
+                default: small
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -132,37 +144,57 @@ struct StatusWidgetView: View {
                 detailRow("slider.vertical.3", equalizerText)
             }
             Spacer(minLength: 4)
-            batteryText(compact: true)
+            batteryLine(compact: true)
         }
     }
 
     private var medium: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                header
-                Spacer(minLength: 4)
-                ViewThatFits(in: .horizontal) {
-                    batteryText(compact: false)
-                    batteryText(compact: true)
-                }
-                .layoutPriority(1)
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            topRow
+            modeButtons
             HStack(spacing: 6) {
-                modeButton(.anc)
-                modeButton(.ambient)
-                modeButton(.off)
+                sourceChip
+                equalizerChip
             }
-            .padding(.vertical, 8)
-            HStack(spacing: 10) {
-                Button(intent: WidgetSwitchSourceIntent()) {
-                    detailRow("arrow.left.arrow.right", snapshot.source)
-                        .contentShape(Rectangle())
+        }
+    }
+
+    private var large: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            topRow
+            modeButtons
+            sectionTitle("Audio Source")
+            if snapshot.devices.isEmpty {
+                Text("No devices reported")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(snapshot.devices.prefix(3), id: \.self) { device in
+                        Button(intent: WidgetSwitchToDeviceIntent(address: device.address)) {
+                            listRow(device.name, symbol: "arrow.left.arrow.right", selected: device.isActive)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
-                Spacer(minLength: 0)
-                detailRow("slider.vertical.3", equalizerText)
-                    .layoutPriority(-1)
             }
+            sectionTitle("Equalizer")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
+                ForEach(largePresets, id: \.self) { preset in
+                    Button(intent: WidgetSetEqualizerIntent(presetID: preset.id)) {
+                        Text(preset.name == "Off" ? "EQ Off" : preset.name)
+                            .font(.caption2.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .frame(maxWidth: .infinity, minHeight: 24)
+                            .padding(.horizontal, 4)
+                            .foregroundStyle(selectedForeground(preset.id == snapshot.equalizerID))
+                            .background(chipBackground(selected: preset.id == snapshot.equalizerID))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -198,6 +230,96 @@ struct StatusWidgetView: View {
         .minimumScaleFactor(0.7)
     }
 
+    private var topRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            header
+            Spacer(minLength: 4)
+            ViewThatFits(in: .horizontal) {
+                batteryLine(compact: false)
+                batteryLine(compact: true)
+            }
+            .layoutPriority(1)
+        }
+    }
+
+    private var modeButtons: some View {
+        HStack(spacing: 6) {
+            modeButton(.anc)
+            modeButton(.ambient)
+            modeButton(.off)
+        }
+    }
+
+    /// Up to 12 presets: the current one is always included.
+    private var largePresets: [HeadphoneSnapshot.Preset] {
+        var list = Array(snapshot.presets.prefix(12))
+        if let id = snapshot.equalizerID, !list.contains(where: { $0.id == id }),
+           let current = snapshot.presets.first(where: { $0.id == id }) {
+            list[list.count - 1] = current
+        }
+        return list
+    }
+
+    private var sourceChip: some View {
+        Button(intent: WidgetSwitchSourceIntent()) {
+            chipLabel("arrow.left.arrow.right", snapshot.source ?? "–")
+                .opacity(snapshot.canSwitchSource ? 1 : 0.5)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var equalizerChip: some View {
+        Button(intent: WidgetNextEqualizerIntent()) {
+            chipLabel("slider.vertical.3", equalizerText ?? "–")
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func chipLabel(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).foregroundStyle(.secondary)
+            Text(text).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .font(.caption.weight(.semibold))
+        .frame(maxWidth: .infinity, minHeight: 30)
+        .padding(.horizontal, 8)
+        .background(chipBackground(selected: false))
+        .contentShape(Rectangle())
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+    }
+
+    private func listRow(_ text: String, symbol: String, selected: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: selected ? "checkmark" : symbol)
+                .frame(width: 16)
+                .widgetAccentable(selected)
+            Text(text).lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+            if selected { Text("Playing").font(.caption2).opacity(0.8) }
+        }
+        .font(.caption.weight(.semibold))
+        .padding(.horizontal, 10)
+        .frame(minHeight: 28)
+        .foregroundStyle(selectedForeground(selected))
+        .background(chipBackground(selected: selected))
+        .contentShape(Rectangle())
+    }
+
+    private func chipBackground(selected: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(selected && fullColor ? Color.blue : Color.primary.opacity(selected ? 0.28 : 0.08))
+    }
+
+    private func selectedForeground(_ selected: Bool) -> Color {
+        selected && fullColor ? .white : .primary
+    }
+
     private var equalizerText: String? {
         guard let name = snapshot.equalizer else { return nil }
         return name == "Off" ? "EQ Off" : name
@@ -215,8 +337,9 @@ struct StatusWidgetView: View {
         .minimumScaleFactor(0.8)
     }
 
-    /// Battery as plain text so it always fits, e.g. "L 100  R 95  Case 62".
-    private func batteryText(compact: Bool) -> some View {
+    /// Battery as a single text line, so it shrinks as a whole to fit,
+    /// e.g. "L 100  R 95  C 62" or "L 100%  R 95%  Case 62%".
+    private func batteryLine(compact: Bool) -> some View {
         var parts: [(String, Int?)] = []
         if snapshot.left != nil || snapshot.right != nil {
             parts = [("L", snapshot.left), ("R", snapshot.right)]
@@ -225,21 +348,19 @@ struct StatusWidgetView: View {
         }
         if snapshot.caseLevel != nil { parts.append((compact ? "C" : "Case", snapshot.caseLevel)) }
 
-        return HStack(spacing: compact ? 6 : 8) {
-            Image(systemName: "battery.75")
-                .foregroundStyle(.secondary)
-            ForEach(parts.indices, id: \.self) { index in
-                HStack(spacing: 2) {
-                    if !parts[index].0.isEmpty {
-                        Text(parts[index].0).foregroundStyle(.secondary)
-                    }
-                    Text(parts[index].1.map { compact ? "\($0)" : "\($0)%" } ?? "–")
-                }
-            }
+        var text = Text("")
+        for (index, part) in parts.enumerated() {
+            if index > 0 { text = text + Text(compact ? "  " : "   ") }
+            if !part.0.isEmpty { text = text + Text(part.0 + " ").foregroundStyle(.secondary) }
+            text = text + Text(part.1.map { compact ? "\($0)" : "\($0)%" } ?? "–")
         }
-        .font(.caption2.weight(.medium).monospacedDigit())
+        return HStack(spacing: 4) {
+            Image(systemName: "battery.75").foregroundStyle(.secondary)
+            text
+        }
+        .font(.caption2.weight(.semibold).monospacedDigit())
         .lineLimit(1)
-        .minimumScaleFactor(0.7)
+        .minimumScaleFactor(0.5)
     }
 
     private func modeButton(_ mode: WidgetMode) -> some View {
@@ -321,9 +442,10 @@ struct NoiseControlControl: ControlWidget {
 struct SourceValueProvider: ControlValueProvider {
     var previewValue: String { "iPhone" }
 
+    /// "unavailable", or the name of the playing device ("" if unknown).
     func currentValue() async throws -> String {
         let snapshot = HeadphoneSnapshot.current()
-        guard snapshot.isConnected else { return "disconnected" }
+        guard snapshot.canSwitchSource else { return "unavailable" }
         return snapshot.source ?? ""
     }
 }
@@ -333,8 +455,8 @@ struct AudioSourceControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: WidgetKinds.audioSource, provider: SourceValueProvider()) { source in
             ControlWidgetButton(action: WidgetSwitchSourceIntent()) {
-                if source == "disconnected" {
-                    Label("Not Connected", systemImage: "headphones")
+                if source == "unavailable" {
+                    Label("Unavailable", systemImage: "arrow.left.arrow.right")
                 } else {
                     Label(source.isEmpty ? "Audio Source" : source, systemImage: "arrow.left.arrow.right")
                 }
@@ -352,6 +474,12 @@ struct AudioSourceControl: ControlWidget {
 }
 
 #Preview("Medium", as: .systemMedium) {
+    StatusWidget()
+} timeline: {
+    StatusEntry(date: .now, snapshot: .preview)
+}
+
+#Preview("Large", as: .systemLarge) {
     StatusWidget()
 } timeline: {
     StatusEntry(date: .now, snapshot: .preview)

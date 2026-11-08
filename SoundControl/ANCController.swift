@@ -339,6 +339,30 @@ final class ANCController: ObservableObject {
         return active.displayName
     }
 
+    func performWidgetSwitch(to address: String) async throws {
+        try await waitUntilReady()
+        _ = try await waitForAudioSources()
+        guard let device = connectedAudioSources.first(where: { $0.address == address }) else {
+            throw ShortcutError.audioSourceUnavailable
+        }
+        switchAudioSource(to: device)
+    }
+
+    func performWidgetEqualizer(_ id: UInt8) async throws {
+        try await waitUntilReady()
+        let preset = equalizerPresets.first { $0.id == id } ?? EqualizerPreset(id: id, name: EqualizerPreset.name(for: id))
+        selectEqualizerPreset(preset)
+    }
+
+    /// Moves to the next preset in the headphones' list, wrapping around.
+    func performWidgetNextEqualizer() async throws {
+        try await waitUntilReady()
+        let presets = equalizerPresets
+        guard !presets.isEmpty else { return }
+        let index = presets.firstIndex { $0.id == equalizer?.presetID } ?? -1
+        selectEqualizerPreset(presets[(index + 1) % presets.count])
+    }
+
     private func waitForAudioSources() async throws -> [MultipointDevice] {
         let revisionBeforeQuery = multipointRevision
         protocolClient?.requestMultipointState()

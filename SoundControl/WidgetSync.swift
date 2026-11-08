@@ -40,8 +40,15 @@ final class WidgetSync {
         snapshot.source = controller.multipointDevices
             .first { $0.address == controller.activeSourceAddress }?.displayName
         if let id = controller.equalizer?.presetID {
+            snapshot.equalizerID = Int(id)
             snapshot.equalizer = controller.equalizerPresets.first { $0.id == id }?.name
                 ?? EqualizerPreset.name(for: id)
+        }
+        snapshot.devices = controller.connectedAudioSources.map {
+            .init(address: $0.address, name: $0.displayName, isActive: $0.address == controller.activeSourceAddress)
+        }
+        if controller.isReady {
+            snapshot.presets = controller.equalizerPresets.map { .init(id: Int($0.id), name: $0.name) }
         }
 
         var compare = snapshot

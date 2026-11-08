@@ -5,6 +5,12 @@ import UserNotifications
 struct SoundControlApp: App {
     @StateObject private var controller = ANCController.shared
 
+    init() {
+        // Also runs when iOS launches the app in the background for a
+        // connection event, before any window exists.
+        ConnectionWatcher.shared.start()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView(controller: controller)
